@@ -23,7 +23,16 @@ from tf_agents.replay_buffers import tf_uniform_replay_buffer
 import tf_agents_testcases.misc as misc
 
 
-def get_q_network(env):
+def get_q_network_simple(env):
+    fc_layer_params = (100,)
+    q_net = q_network.QNetwork(
+        env.observation_spec(),
+        env.action_spec(),
+        fc_layer_params=fc_layer_params)
+    return q_net
+
+
+def get_q_network_halite(env):
     preprocessing_layers = OrderedDict({'halite_map': tf.keras.layers.Flatten(),
                                         'scalar_features': tf.keras.layers.Flatten()})
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
@@ -54,19 +63,39 @@ def get_dqn_agent(train_env, q_net):
     return agent
 
 
-class DQNet:
-    def __init__(self, env_name='gym_halite:halite-v0'):
+def get_and_fill_replay_buffer(agent, env, replay_buffer_max_length=39999, steps=3999):
+
+    # Initialize a replay buffer -----------------------------------------
+    replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
+        data_spec=agent.collect_data_spec,
+        batch_size=env.batch_size,
+        max_length=replay_buffer_max_length)
+
+    # Save some initial data to the replay buffer
+    env.reset()
+    # There are a reset + 399 steps maximum
+    # thus, 400 steps in total
+    # for example, the last step of tenth iteration is 3999
+    # for example, the first step of eleventh iteration is 4001
+    misc.collect_data(env, agent.collect_policy, replay_buffer, steps)
+
+    batch_size = 64
+    # Dataset generates trajectories with shape [Bx2x...]
+    dataset = replay_buffer.as_dataset(
+        num_parallel_calls=3,
+        sample_batch_size=batch_size,
+        num_steps=2).prefetch(3)
+    iterator = iter(dataset)
+    return replay_buffer, iterator
+
+
+class QNet:
+    def __init__(self, env_name):
         # Initialize environments --------------------------------------------
         train_env = suite_gym.load(env_name)
         self._train_env = tf_py_environment.TFPyEnvironment(train_env)
         eval_env = suite_gym.load(env_name)
         self._eval_env = tf_py_environment.TFPyEnvironment(eval_env)
-
-        # Initialize Q Network -----------------------------------------------
-        self._q_net = get_q_network(self._train_env)
-
-        # Initialize DQN agent -----------------------------------------------
-        self._agent = get_dqn_agent(self._train_env, self._q_net)
 
         random_policy = random_tf_policy.RandomTFPolicy(self._train_env.time_step_spec(),
                                                         self._train_env.action_spec())
@@ -76,28 +105,9 @@ class DQNet:
         avg_return = misc.compute_avg_return(self._train_env, random_policy, self._num_eval_episodes)
         print(f"The average return of random policy is {avg_return}")
 
-        # Initialize a replay buffer -----------------------------------------
-        replay_buffer_max_length = 39999
-        self._replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
-            data_spec=self._agent.collect_data_spec,
-            batch_size=self._train_env.batch_size,
-            max_length=replay_buffer_max_length)
-
-        # Save some initial data to the replay buffer
-        self._train_env.reset()
-        # There are a reset + 399 steps maximum
-        # thus, 400 steps in total
-        # for example, the last step of tenth iteration is 3999
-        # for example, the first step of eleventh iteration is 4001
-        misc.collect_data(self._train_env, random_policy, self._replay_buffer, steps=3999)
-
-        batch_size = 64
-        # Dataset generates trajectories with shape [Bx2x...]
-        self._dataset = self._replay_buffer.as_dataset(
-            num_parallel_calls=3,
-            sample_batch_size=batch_size,
-            num_steps=2).prefetch(3)
-        self._iterator = iter(self._dataset)
+        self._agent = None
+        self._replay_buffer = None
+        self._iterator = None
 
     @property
     def get_policy(self):
@@ -151,3 +161,23 @@ class DQNet:
                 returns.append(avg_return)
 
         return returns, self._agent.policy
+
+
+class DQNet(QNet):
+    NETWORKS = {'CartPole-v0': get_q_network_simple,
+                'gym_halite:halite-v0': get_q_network_halite}
+
+    def __init__(self, env_name):
+        # Initialize environments --------------------------------------------
+        super().__init__(env_name)
+
+        # Initialize Q Network -----------------------------------------------
+        self._q_net = DQNet.NETWORKS[env_name](self._train_env)
+
+        # Initialize DQN agent -----------------------------------------------
+        self._agent = get_dqn_agent(self._train_env, self._q_net)
+
+        self._replay_buffer, self._iterator = get_and_fill_replay_buffer(
+            self._agent,
+            self._train_env
+        )
