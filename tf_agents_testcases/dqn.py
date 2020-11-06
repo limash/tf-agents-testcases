@@ -57,6 +57,21 @@ def get_q_network_halite(env):
     return q_net
 
 
+def get_categorical_q_network_halite(env):
+    preprocessing_layers = OrderedDict({'halite_map': tf.keras.layers.Flatten(),
+                                        'scalar_features': tf.keras.layers.Flatten()})
+    preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
+    fc_layer_params = (1024, 1024)
+    q_net = categorical_q_network.CategoricalQNetwork(
+        env.observation_spec(),
+        env.action_spec(),
+        preprocessing_layers=preprocessing_layers,
+        preprocessing_combiner=preprocessing_combiner,
+        num_atoms=51,
+        fc_layer_params=fc_layer_params)
+    return q_net
+
+
 def get_dqn_agent(env, q_net):
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     # tf.compat.v1.enable_v2_behavior()
@@ -218,6 +233,7 @@ class DQNet(QNet):
 class CDQNet(QNet):
     NETWORKS = {'CartPole-v0': get_categorical_q_network_simple,
                 'CartPole-v1': get_categorical_q_network_simple,
+                'gym_halite:halite-v0': get_categorical_q_network_halite
                 }
 
     def __init__(self, env_name):
