@@ -100,6 +100,7 @@ if __name__ == '__main__':
        CartPole-v0,
        gym_halite:halite-v0 
     """
-    agent = dqn.DQNet(env_name='CartPole-v0')
+    # agent = dqn.DQNet(env_name='CartPole-v1')
     # agent = dqn.DQNet(env_name='gym_halite:halite-v0')
+    agent = dqn.CDQNet(env_name='CartPole-v1')
     returns, policy = agent.train(num_iterations=10000)

@@ -12,10 +12,11 @@ from collections import OrderedDict
 
 import tensorflow as tf
 
-from tf_agents.environments import suite_gym
-from tf_agents.environments import tf_py_environment
-from tf_agents.networks import q_network
+from tf_agents.environments import suite_gym, tf_py_environment
+from tf_agents.networks import q_network, categorical_q_network
 from tf_agents.agents.dqn import dqn_agent
+from tf_agents.agents.categorical_dqn import categorical_dqn_agent
+
 from tf_agents.utils import common
 from tf_agents.policies import random_tf_policy
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
@@ -28,6 +29,16 @@ def get_q_network_simple(env):
     q_net = q_network.QNetwork(
         env.observation_spec(),
         env.action_spec(),
+        fc_layer_params=fc_layer_params)
+    return q_net
+
+
+def get_categorical_q_network_simple(env):
+    fc_layer_params = (100,)
+    q_net = categorical_q_network.CategoricalQNetwork(
+        env.observation_spec(),
+        env.action_spec(),
+        num_atoms=51,
         fc_layer_params=fc_layer_params)
     return q_net
 
@@ -46,14 +57,14 @@ def get_q_network_halite(env):
     return q_net
 
 
-def get_dqn_agent(train_env, q_net):
+def get_dqn_agent(env, q_net):
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     # tf.compat.v1.enable_v2_behavior()
     # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=0.001)
     train_step_counter = tf.Variable(0)
     agent = dqn_agent.DqnAgent(
-        train_env.time_step_spec(),
-        train_env.action_spec(),
+        env.time_step_spec(),
+        env.action_spec(),
         q_network=q_net,
         optimizer=optimizer,
         td_errors_loss_fn=common.element_wise_squared_loss,
@@ -63,7 +74,27 @@ def get_dqn_agent(train_env, q_net):
     return agent
 
 
-def get_and_fill_replay_buffer(agent, env, replay_buffer_max_length=39999, steps=3999):
+def get_categorical_dqn_agent(env, cat_q_net, n_step_update):
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    # tf.compat.v1.enable_v2_behavior()
+    # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=0.001)
+    train_step_counter = tf.Variable(0)
+    agent = categorical_dqn_agent.CategoricalDqnAgent(
+        env.time_step_spec(),
+        env.action_spec(),
+        categorical_q_network=cat_q_net,
+        optimizer=optimizer,
+        min_q_value=-20,
+        max_q_value=20,
+        n_step_update=n_step_update,
+        td_errors_loss_fn=common.element_wise_squared_loss,
+        gamma=0.99,
+        train_step_counter=train_step_counter)
+    agent.initialize()
+    return agent
+
+
+def get_and_fill_replay_buffer(agent, env, n_step_update=1, replay_buffer_max_length=39999, steps=3999):
 
     # Initialize a replay buffer -----------------------------------------
     replay_buffer = tf_uniform_replay_buffer.TFUniformReplayBuffer(
@@ -84,7 +115,7 @@ def get_and_fill_replay_buffer(agent, env, replay_buffer_max_length=39999, steps
     dataset = replay_buffer.as_dataset(
         num_parallel_calls=3,
         sample_batch_size=batch_size,
-        num_steps=2).prefetch(3)
+        num_steps=n_step_update+1).prefetch(3)
     iterator = iter(dataset)
     return replay_buffer, iterator
 
@@ -165,6 +196,7 @@ class QNet:
 
 class DQNet(QNet):
     NETWORKS = {'CartPole-v0': get_q_network_simple,
+                'CartPole-v1': get_q_network_simple,
                 'gym_halite:halite-v0': get_q_network_halite}
 
     def __init__(self, env_name):
@@ -180,4 +212,27 @@ class DQNet(QNet):
         self._replay_buffer, self._iterator = get_and_fill_replay_buffer(
             self._agent,
             self._train_env
+        )
+
+
+class CDQNet(QNet):
+    NETWORKS = {'CartPole-v0': get_categorical_q_network_simple,
+                'CartPole-v1': get_categorical_q_network_simple,
+                }
+
+    def __init__(self, env_name):
+        # Initialize environments --------------------------------------------
+        super().__init__(env_name)
+        n_step_update = 2
+
+        # Initialize Q Network -----------------------------------------------
+        self._q_net = CDQNet.NETWORKS[env_name](self._train_env)
+
+        # Initialize DQN agent -----------------------------------------------
+        self._agent = get_categorical_dqn_agent(self._train_env, self._q_net, n_step_update=n_step_update)
+
+        self._replay_buffer, self._iterator = get_and_fill_replay_buffer(
+            self._agent,
+            self._train_env,
+            n_step_update=n_step_update
         )
