@@ -159,7 +159,7 @@ class QNet:
     def get_policy(self):
         return self._agent.policy
 
-    def train(self, num_iterations = 1000):
+    def train(self, num_iterations = 10000):
         # Training -----------------------------------------------------------
         collect_steps_per_iteration = 1
         train_cycles_per_iteration = 1
@@ -205,6 +205,7 @@ class QNet:
                 avg_return = misc.compute_avg_return(self._eval_env, self._agent.policy, self._num_eval_episodes)
                 print('step = {0}: Average Return = {1}'.format(step, avg_return))
                 returns.append(avg_return)
+                # misc.print_q_value(self._eval_env, self._agent.policy, self._q_net)
 
         return returns, self._agent.policy
 
