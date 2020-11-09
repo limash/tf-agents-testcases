@@ -44,7 +44,7 @@ def get_categorical_q_network_simple(env):
 
 
 def get_q_network_halite(env):
-    preprocessing_layers = OrderedDict({'halite_map': tf.keras.layers.Flatten(),
+    preprocessing_layers = OrderedDict({'feature_maps': tf.keras.layers.Flatten(),
                                         'scalar_features': tf.keras.layers.Flatten()})
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
     fc_layer_params = (1024, 1024)
@@ -58,7 +58,7 @@ def get_q_network_halite(env):
 
 
 def get_categorical_q_network_halite(env):
-    preprocessing_layers = OrderedDict({'halite_map': tf.keras.layers.Flatten(),
+    preprocessing_layers = OrderedDict({'feature_maps': tf.keras.layers.Flatten(),
                                         'scalar_features': tf.keras.layers.Flatten()})
     preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
     fc_layer_params = (1024, 1024)
