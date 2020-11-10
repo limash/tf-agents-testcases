@@ -23,16 +23,17 @@ from gym_halite.envs.halite_env import get_scalar_features, get_feature_maps
 
 from tf_agents.trajectories import trajectory
 
-from tf_agents_testcases import models
+from tf_agents_testcases import networks
 
 
-def print_q_value(environment, policy, q_net):
+def print_q_values(environment, policy, q_net):
     time_step = environment.reset()
     while not time_step.is_last():
         action_step = policy.action(time_step)
-        q_value, network_state = q_net(time_step.observation)
+        q_values, network_state = q_net(time_step.observation)
         time_step = environment.step(action_step.action)
-        print(f"Q value is {q_value}")
+        print(f"Q value is {q_values}")
+        print(f"Action is {action_step.action}")
 
 
 def compute_avg_return(environment, policy, num_episodes=10):
@@ -87,7 +88,7 @@ def get_env_and_critic_model():
     observation_spec, action_spec, time_step_spec = (
         spec_utils.get_tensor_specs(env)
     )
-    model = models.CriticNetwork((observation_spec, action_spec))
+    model = networks.CriticNetwork((observation_spec, action_spec))
     return env, model
 
 
@@ -96,7 +97,7 @@ def get_env_and_actor_model():
     observation_spec, action_spec, time_step_spec = (
         spec_utils.get_tensor_specs(env)
     )
-    model = models.ActorDistributionNetwork(
+    model = networks.ActorDistributionNetwork(
         observation_spec, action_spec,
         continuous_projection_net=(
             tanh_normal_projection_network.TanhNormalProjectionNetwork

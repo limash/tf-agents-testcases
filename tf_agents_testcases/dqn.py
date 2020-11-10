@@ -8,74 +8,22 @@
 # General Public License for more details.
 
 import time
-from collections import OrderedDict
 
 import tensorflow as tf
 
 from tf_agents.environments import suite_gym, tf_py_environment
-from tf_agents.networks import q_network, categorical_q_network
 from tf_agents.agents.dqn import dqn_agent
 from tf_agents.agents.categorical_dqn import categorical_dqn_agent
-
-from tf_agents.utils import common
 from tf_agents.policies import random_tf_policy
+from tf_agents.utils import common
 from tf_agents.replay_buffers import tf_uniform_replay_buffer
 
 import tf_agents_testcases.misc as misc
-
-
-def get_q_network_simple(env):
-    fc_layer_params = (100,)
-    q_net = q_network.QNetwork(
-        env.observation_spec(),
-        env.action_spec(),
-        fc_layer_params=fc_layer_params)
-    return q_net
-
-
-def get_categorical_q_network_simple(env):
-    fc_layer_params = (100,)
-    q_net = categorical_q_network.CategoricalQNetwork(
-        env.observation_spec(),
-        env.action_spec(),
-        num_atoms=51,
-        fc_layer_params=fc_layer_params)
-    return q_net
-
-
-def get_q_network_halite(env):
-    preprocessing_layers = OrderedDict({'feature_maps': tf.keras.layers.Flatten(),
-                                        'scalar_features': tf.keras.layers.Flatten()})
-    preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
-    fc_layer_params = (1024, 1024)
-    q_net = q_network.QNetwork(
-        env.observation_spec(),
-        env.action_spec(),
-        preprocessing_layers=preprocessing_layers,
-        preprocessing_combiner=preprocessing_combiner,
-        fc_layer_params=fc_layer_params)
-    return q_net
-
-
-def get_categorical_q_network_halite(env):
-    preprocessing_layers = OrderedDict({'feature_maps': tf.keras.layers.Flatten(),
-                                        'scalar_features': tf.keras.layers.Flatten()})
-    preprocessing_combiner = tf.keras.layers.Concatenate(axis=-1)
-    fc_layer_params = (1024, 1024)
-    q_net = categorical_q_network.CategoricalQNetwork(
-        env.observation_spec(),
-        env.action_spec(),
-        preprocessing_layers=preprocessing_layers,
-        preprocessing_combiner=preprocessing_combiner,
-        num_atoms=51,
-        fc_layer_params=fc_layer_params)
-    return q_net
+import tf_agents_testcases.networks as networks
 
 
 def get_dqn_agent(env, q_net):
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
-    # tf.compat.v1.enable_v2_behavior()
-    # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=0.001)
     train_step_counter = tf.Variable(0)
     agent = dqn_agent.DqnAgent(
         env.time_step_spec(),
@@ -91,8 +39,6 @@ def get_dqn_agent(env, q_net):
 
 def get_categorical_dqn_agent(env, cat_q_net, n_step_update):
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
-    # tf.compat.v1.enable_v2_behavior()
-    # optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=0.001)
     train_step_counter = tf.Variable(0)
     agent = categorical_dqn_agent.CategoricalDqnAgent(
         env.time_step_spec(),
@@ -159,7 +105,7 @@ class QNet:
     def get_policy(self):
         return self._agent.policy
 
-    def train(self, num_iterations = 10000):
+    def train(self, num_iterations=10000):
         # Training -----------------------------------------------------------
         collect_steps_per_iteration = 1
         train_cycles_per_iteration = 1
@@ -205,15 +151,15 @@ class QNet:
                 avg_return = misc.compute_avg_return(self._eval_env, self._agent.policy, self._num_eval_episodes)
                 print('step = {0}: Average Return = {1}'.format(step, avg_return))
                 returns.append(avg_return)
-                # misc.print_q_value(self._eval_env, self._agent.policy, self._q_net)
+                # misc.print_q_values(self._eval_env, self._agent.policy, self._q_net)
 
         return returns, self._agent.policy
 
 
 class DQNet(QNet):
-    NETWORKS = {'CartPole-v0': get_q_network_simple,
-                'CartPole-v1': get_q_network_simple,
-                'gym_halite:halite-v0': get_q_network_halite}
+    NETWORKS = {'CartPole-v0': networks.get_q_network_simple,
+                'CartPole-v1': networks.get_q_network_simple,
+                'gym_halite:halite-v0': networks.get_q_network_halite}
 
     def __init__(self, env_name):
         # Initialize environments --------------------------------------------
@@ -225,6 +171,8 @@ class DQNet(QNet):
         # Initialize DQN agent -----------------------------------------------
         self._agent = get_dqn_agent(self._train_env, self._q_net)
 
+        # misc.print_q_values(self._train_env, self._agent.policy, self._q_net)
+
         self._replay_buffer, self._iterator = get_and_fill_replay_buffer(
             self._agent,
             self._train_env
@@ -232,9 +180,9 @@ class DQNet(QNet):
 
 
 class CDQNet(QNet):
-    NETWORKS = {'CartPole-v0': get_categorical_q_network_simple,
-                'CartPole-v1': get_categorical_q_network_simple,
-                'gym_halite:halite-v0': get_categorical_q_network_halite
+    NETWORKS = {'CartPole-v0': networks.get_categorical_q_network_simple,
+                'CartPole-v1': networks.get_categorical_q_network_simple,
+                'gym_halite:halite-v0': networks.get_categorical_q_network_halite
                 }
 
     def __init__(self, env_name):
