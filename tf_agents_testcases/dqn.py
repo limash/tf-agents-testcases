@@ -7,6 +7,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 # General Public License for more details.
 
+import abc
 import time
 
 import tensorflow as tf
@@ -81,7 +82,9 @@ def get_and_fill_replay_buffer(agent, env, n_step_update=1, replay_buffer_max_le
     return replay_buffer, iterator
 
 
-class QNet:
+class QNet(abc.ABC):
+
+    @abc.abstractmethod
     def __init__(self, env_name):
         # Initialize environments --------------------------------------------
         train_env = suite_gym.load(env_name)
