@@ -128,31 +128,31 @@ class QNet(abc.ABC):
         self._train_env.reset()
         for iteration in range(num_iterations):
             # Collect a few steps using collect_policy and save to the replay buffer.
-            # t0 = time.time()
+            t0 = time.time()
             # print("Start data collecting")
             # if we do not reset, there will be not enough steps for a whole iteration
             # since a step will be consumed for a reset
             # self._train_env.reset()
             for collect_step in range(collect_steps_per_iteration):
                 misc.collect_step(self._train_env, self._agent.collect_policy, self._replay_buffer, collect_step)
-            # t1 = time.time()
-            # print(f"Time elapsed for collecting is {t1 - t0}")
+            t1 = time.time()
 
             # Sample a batch of data from the buffer and update the agent's network.
             # print("Start training")
-            # t2 = time.time()
+            t2 = time.time()
             for _ in range(train_cycles_per_iteration):
                 experience, unused_info = next(self._iterator)
                 self._agent.train(experience)
-            # t3 = time.time()
-            # print(f"Time elapsed for training is {t3 - t1}")
+            t3 = time.time()
 
             step = self._agent.train_step_counter.numpy()
             # print(f"Training step number is {step}")
 
             if step % eval_interval == 0:
                 avg_return = misc.compute_avg_return(self._eval_env, self._agent.policy, self._num_eval_episodes)
-                print('step = {0}: Average Return = {1}'.format(step, avg_return))
+                print('Step = {0}: Average Return = {1}'.format(step, avg_return))
+                print(f"Time elapsed for collecting is {t1 - t0}")
+                print(f"Time elapsed for training is {t3 - t1}")
                 returns.append(avg_return)
                 # misc.print_q_values(self._eval_env, self._agent.policy, self._q_net)
 
