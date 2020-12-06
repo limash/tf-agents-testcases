@@ -23,7 +23,7 @@ import tf_agents_testcases.misc as misc
 import tf_agents_testcases.networks as networks
 
 
-def get_dqn_agent(env, q_net):
+def get_dqn_agent(env, q_net, n_step_update=1):
     optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
     train_step_counter = tf.Variable(0)
     agent = dqn_agent.DqnAgent(
@@ -31,6 +31,7 @@ def get_dqn_agent(env, q_net):
         env.action_spec(),
         q_network=q_net,
         optimizer=optimizer,
+        n_step_update=n_step_update,
         td_errors_loss_fn=common.element_wise_squared_loss,
         gamma=0.95,
         train_step_counter=train_step_counter)
@@ -73,7 +74,7 @@ def get_and_fill_replay_buffer(agent, env, n_step_update=1, replay_buffer_max_le
     misc.collect_data(env, agent.collect_policy, replay_buffer, steps)
 
     batch_size = 64
-    # Dataset generates trajectories with shape [Bx2x...]
+    # Dataset generates trajectories with shape [Bx'num_steps'x...]
     dataset = replay_buffer.as_dataset(
         num_parallel_calls=3,
         sample_batch_size=batch_size,
@@ -167,18 +168,22 @@ class DQNet(QNet):
     def __init__(self, env_name):
         # Initialize environments --------------------------------------------
         super().__init__(env_name)
+        n_step_update = 2
 
         # Initialize Q Network -----------------------------------------------
         self._q_net = DQNet.NETWORKS[env_name](self._train_env)
 
         # Initialize DQN agent -----------------------------------------------
-        self._agent = get_dqn_agent(self._train_env, self._q_net)
+        self._agent = get_dqn_agent(self._train_env, self._q_net, n_step_update=n_step_update)
+        # useful for debuging
+        # self._agent._enable_functions = False
 
         # misc.print_q_values(self._train_env, self._agent.policy, self._q_net)
 
         self._replay_buffer, self._iterator = get_and_fill_replay_buffer(
             self._agent,
-            self._train_env
+            self._train_env,
+            n_step_update=n_step_update
         )
 
 
