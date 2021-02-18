@@ -7,7 +7,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 # General Public License for more details.
 
-import time
+# import time
 import numpy as np
 import tensorflow as tf
 
@@ -24,6 +24,18 @@ from gym_halite.envs.halite_env import get_scalar_features, get_feature_maps
 from tf_agents.trajectories import trajectory
 
 from tf_agents_testcases import networks
+
+
+class ShowProgress:
+    def __init__(self, total):
+        self.counter = 0
+        self.total = total
+
+    def __call__(self, traj):
+        if not traj.is_boundary():
+            self.counter += 1
+        if self.counter % 100 == 0:
+            print("\r{}/{}".format(self.counter, self.total), end="")
 
 
 def print_q_values(environment, policy, q_net):
@@ -61,10 +73,10 @@ def compute_avg_return(environment, policy, num_episodes=10):
 
 
 def collect_step(environment, policy, buffer, step):
+    # can be replaced with a tf agents collect driver
     # there is a situation possible when
-    # the current_time_step is last and the next_time_step is first
-    # apparently it restarts the environment
-    # but it is unknown what happens in traj during reset and if it saves this traj to buffer
+    # the current_time_step is LAST (2) and the next_time_step is FIRST (0)
+    # btw, the MID time step is 1
     time_step = environment.current_time_step()
     action_step = policy.action(time_step)
     next_time_step = environment.step(action_step.action)

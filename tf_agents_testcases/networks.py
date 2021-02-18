@@ -9,6 +9,7 @@
 
 from collections import OrderedDict
 
+import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
@@ -252,6 +253,25 @@ def get_q_network_simple(env):
     return q_net
 
 
+def get_q_network_with_conv(env):
+
+    preprocessing_layer = keras.layers.Lambda(
+        lambda obs: tf.cast(obs, np.float32) / 255.)
+    conv_layer_params = [(32, (8, 8), 4),  # filters number, size, stride
+                         (64, (4, 4), 2),
+                         (64, (3, 3), 1)]
+    fc_layer_params = [512]
+
+    q_net = q_network.QNetwork(
+        env.observation_spec(),
+        env.action_spec(),
+        preprocessing_layers=preprocessing_layer,
+        conv_layer_params=conv_layer_params,
+        fc_layer_params=fc_layer_params)
+
+    return q_net
+
+
 def get_categorical_q_network_simple(env):
     fc_layer_params = (100,)
     q_net = categorical_q_network.CategoricalQNetwork(
@@ -292,6 +312,7 @@ def get_q_network_halite(env):
         preprocessing_combiner=preprocessing_combiner,
         fc_layer_params=fc_layer_params)
     return q_net
+
 
 def get_q_conv_network_halite(env):
     q_net = QValueNet(env.observation_spec(),
